@@ -22,6 +22,14 @@ use Throwable;
      * @var Stopper
      */
     private $stopper;
+	/**
+	 * @var string|callable
+	 */
+	private $onException;
+	/**
+	 * @var boolean
+	 */
+	private $onExceptionIsCallable;
 
     /**
      * Worker constructor.
@@ -42,6 +50,8 @@ use Throwable;
 
         $this->entityManager = $entityManager;
         $this->stopper       = $stopper;
+	    $this->onException = config('safequeue.onException');
+	    $this->onExceptionIsCallable = is_callable($this->onException);
     }
 
     /**
@@ -60,6 +70,7 @@ use Throwable;
     public function daemon($connectionName, $queue = null, $delay = 0, $memory = 128, $sleep = 3, $maxTries = 0)
     {
         $lastRestart = $this->getTimestampOfLastQueueRestart();
+	    $canContinue = true;
 
         while (true) {
             if ($this->daemonShouldRun()) {
@@ -67,9 +78,9 @@ use Throwable;
                     $connectionName, $queue, $delay, $sleep, $maxTries
                 );
 
-                if ($canContinue === false) {
-                    break;
-                }
+	            if ($canContinue !== true) {
+		            break;
+	            }
             } else {
                 $this->sleep($sleep);
             }
@@ -79,16 +90,27 @@ use Throwable;
             }
         }
 
-        $this->stop();
+	    $this->stopQueue($canContinue);
     }
+
+	/**
+	 * Overridden to allow testing.
+	 */
+	public function stop()
+	{
+		$this->stopper->stop();
+	}
 
     /**
      * Overridden to allow testing.
      */
-    public function stop()
-    {
-        $this->stopper->stop();
-    }
+	public function stopQueue($val)
+	{
+		if(is_string($val) || is_int($val)) {
+			exit($val);
+		}
+		exit;
+	}
 
     /**
      * The parent class implementation of this method just carries on in case of error, but this
@@ -126,6 +148,12 @@ use Throwable;
             if ($this->exceptions) {
                 $this->exceptions->report($e);
             }
+	        if($this->onExceptionIsCallable)  {
+		        $result = call_user_func($this->onException, $e);
+		        if($result !== null && $result !== true) {
+			        return $result;
+		        }
+	        }
 
             if ($e instanceof QueueMustStop) {
                 return false;
@@ -134,6 +162,12 @@ use Throwable;
             if ($this->exceptions) {
                 $this->exceptions->report(new FatalThrowableError($e));
             }
+	        if($this->onExceptionIsCallable)  {
+		        $result = call_user_func($this->onException, $e);
+		        if($result !== null && $result !== true) {
+			        return $result;
+		        }
+	        }
 
             if ($e instanceof QueueMustStop) {
                 return false;
