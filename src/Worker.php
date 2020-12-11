@@ -100,11 +100,11 @@ use Throwable;
     /**
      * Overridden to allow testing.
      */
-    public function stop()
+    public function stop($status = 0)
     {
         $this->events->fire(new WorkerStopping);
 
-        $this->stopper->stop();
+        $this->stopper->stop($status);
     }
 
     /**

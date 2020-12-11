@@ -5,8 +5,8 @@ namespace MaxBrokman\SafeQueue;
 
 class Stopper
 {
-    public function stop()
+    public function stop($status = 0)
     {
-        exit; //@codeCoverageIgnore
+        exit($status); //@codeCoverageIgnore
     }
 }
